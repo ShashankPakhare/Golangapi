@@ -27,10 +27,53 @@ type users struct {
 }
 
 func main() {
+	http.HandleFunc("/", alluser)
 	http.HandleFunc("/user", user)
 	http.HandleFunc("/user/", userres)
 	http.HandleFunc("/contact", Contact)
 	http.ListenAndServe(":3000", nil)
+}
+
+func alluser(w http.ResponseWriter, r *http.Request) {
+
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://new-Shashank:ShAsHaNk@cluster0.loytd.mongodb.net/<dbname>?retryWrites=true&w=majority"))
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err = client.Connect(ctx)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer client.Disconnect(ctx)
+
+	newdata := client.Database("newdata")
+	userCollection := newdata.Collection("userDetails")
+
+	cursor, err := userCollection.Find(ctx, bson.M{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var episodes []bson.M
+	if err = cursor.All(ctx, &episodes); err != nil {
+		log.Fatal(err)
+	}
+
+	for _, episodes := range episodes {
+		we, err := json.Marshal(episodes)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		w.Header().Set("Content-type", "application/json")
+		w.Write(we)
+	}
+
 }
 
 func user(w http.ResponseWriter, r *http.Request) {
@@ -137,75 +180,105 @@ func Contact(w http.ResponseWriter, r *http.Request) {
 
 		userid := r.FormValue("user")
 		times := r.FormValue("infection_timestamp")
-		fmt.Println(userid, times)
+		if userid == "" {
+			t, _ := template.ParseFiles("contact.html")
+			t.Execute(w, nil)
 
-		fmt.Println(reflect.TypeOf(times))
-		t, err := time.Parse("2006-01-02", times)
+		} else {
 
-		if err != nil {
-			fmt.Println(err)
-		}
+			fmt.Println(userid, times)
 
-		timespam := t.Add(-24 * 14 * time.Hour).Unix()
-		//{ $or: [ { quantity: { $lt: 20 } }, { price: 10 } ] }
+			fmt.Println(reflect.TypeOf(times))
+			t, err := time.Parse("2006-01-02", times)
 
-		client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://new-Shashank:ShAsHaNk@cluster0.loytd.mongodb.net/<dbname>?retryWrites=true&w=majority"))
+			if err != nil {
+				fmt.Println(err)
+			}
 
-		if err != nil {
-			log.Fatal(err)
-		}
-		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-		err = client.Connect(ctx)
+			timespam := t.Add(-24 * 14 * time.Hour).Unix()
+			//{ $or: [ { quantity: { $lt: 20 } }, { price: 10 } ] }
 
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer client.Disconnect(ctx)
+			client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://new-Shashank:ShAsHaNk@cluster0.loytd.mongodb.net/<dbname>?retryWrites=true&w=majority"))
 
-		newdata := client.Database("newdata")
-		userCollection := newdata.Collection("contactDetails")
-
-		opts := options.Find()
-		opts.SetSort(bson.D{{"duration", 1}})
-
-		sortCursor, err := userCollection.Find(ctx, bson.D{
-			{"time", bson.D{
-				{"$gt", timespam},
-			}}, {"useridOne", userid},
-		}, opts)
-
-		var episodesSorted []bson.M
-		if err = sortCursor.All(ctx, &episodesSorted); err != nil {
-			log.Fatal(err)
-		}
-
-		for _, episodesSorted := range episodesSorted {
-
-			fmt.Println(episodesSorted["useridTwo"])
-			fmt.Println(reflect.TypeOf(episodesSorted["useridTwo"]))
-
-			Collect := newdata.Collection("userDetails")
-
-			cursor, err := Collect.Find(ctx, bson.M{"id": episodesSorted["useridTwo"]})
 			if err != nil {
 				log.Fatal(err)
 			}
+			ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+			err = client.Connect(ctx)
 
-			var epis []bson.M
-			if err = cursor.All(ctx, &epis); err != nil {
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer client.Disconnect(ctx)
+
+			newdata := client.Database("newdata")
+			userCollection := newdata.Collection("contactDetails")
+
+			opts := options.Find()
+			opts.SetSort(bson.D{{"duration", 1}})
+
+			sortCursor, err := userCollection.Find(ctx, bson.D{
+				{"time", bson.D{
+					{"$gt", timespam},
+				}}, // {"useridOne", userid},
+			}, opts)
+
+			var episodesSorted []bson.M
+			if err = sortCursor.All(ctx, &episodesSorted); err != nil {
 				log.Fatal(err)
 			}
 
-			for _, epis := range epis {
-				wer, err := json.Marshal(epis)
-				if err != nil {
-					fmt.Println(err)
+			for _, episodesSorted := range episodesSorted {
+
+				fmt.Println(episodesSorted["useridTwo"])
+				fmt.Println(reflect.TypeOf(episodesSorted["useridTwo"]))
+
+				Collect := newdata.Collection("userDetails")
+
+				if episodesSorted["useridTwo"] == userid {
+					cursor, err := Collect.Find(ctx, bson.M{"id": episodesSorted["useridOne"]})
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					var epis []bson.M
+					if err = cursor.All(ctx, &epis); err != nil {
+						log.Fatal(err)
+					}
+
+					for _, epis := range epis {
+						wer, err := json.Marshal(epis)
+						if err != nil {
+							fmt.Println(err)
+						}
+
+						w.Header().Set("Content-type", "application/json")
+						w.Write(wer)
+					}
+				} else if episodesSorted["useridOne"] == userid {
+
+					cursor, err := Collect.Find(ctx, bson.M{"id": episodesSorted["useridTwo"]})
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					var epis []bson.M
+					if err = cursor.All(ctx, &epis); err != nil {
+						log.Fatal(err)
+					}
+
+					for _, epis := range epis {
+						wer, err := json.Marshal(epis)
+						if err != nil {
+							fmt.Println(err)
+						}
+
+						w.Header().Set("Content-type", "application/json")
+						w.Write(wer)
+					}
 				}
 
-				w.Header().Set("Content-type", "application/json")
-				w.Write(wer)
 			}
-
 		}
 
 	} else {
@@ -213,13 +286,21 @@ func Contact(w http.ResponseWriter, r *http.Request) {
 
 		userOne := r.FormValue("useridOne")
 		userTwo := r.FormValue("useridTwo")
-		times := time.Now().Unix()
+		timestamp := r.FormValue("Timestamp")
+
+		t, err := time.Parse("2006-01-02", timestamp)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		times := t.Unix()
 
 		client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://new-Shashank:ShAsHaNk@cluster0.loytd.mongodb.net/<dbname>?retryWrites=true&w=majority"))
 
 		if err != nil {
 			log.Fatal(err)
 		}
+
 		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		err = client.Connect(ctx)
 
